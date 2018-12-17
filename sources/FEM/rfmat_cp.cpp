@@ -1094,11 +1094,13 @@ double CompProperties::CalcDiffusionCoefficientCP(long index,double theta,CRFPro
                 double De;
                 if(nodePoros > porosCrit)
                 {
-                    const double& De_porosInit = k[0];
+                    const double& Dw = k[0];
                     const double& m = k[1];
 
                     //ATTENTION: This does not include initial saturation different from 1
                     const double porosInit = m_vec_GEM->REACT_GEM::GetNodePorosityValueInitial(elem->GetNodeIndex ( i ));
+
+                    const double De_porosInit = Dw * std::pow(porosInit, m);
 
                     const double phiRatio = (nodePoros - porosCrit) / (porosInit - porosCrit);
                     const double tort = std::pow(phiRatio, m);
