@@ -1062,8 +1062,8 @@ double CompProperties::CalcDiffusionCoefficientCP(long index,double theta,CRFPro
 
         case 30: // diffusion coeffcient is scaled to relative porosity change including a critical porosity value
         {
-            assert(count_of_diffusion_model_values == 3);
-            if (count_of_diffusion_model_values < 3)
+            assert(count_of_diffusion_model_values == 4);
+            if (count_of_diffusion_model_values < 4)
                 return 0.0;
 
             porosity = m_mat_mp->Porosity(index, theta);
@@ -1375,6 +1375,10 @@ int CompProperties::GetNumberDiffusionValuesCompProperties(int diffusion_model)
         case 11:
                 n = 3;   
 		break;                    /* Archie Law via porosity + temperature dependence with empirical Arrhenius equation */
+
+    case 30:
+        n = 4;
+        break;
 
 	}                                     /* switch */
 
