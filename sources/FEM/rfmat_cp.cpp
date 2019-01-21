@@ -1086,9 +1086,11 @@ double CompProperties::CalcDiffusionCoefficientCP(long index,double theta,CRFPro
             {
                 // then get the values from nodes
 
-                double nodePoros = m_vec_GEM->REACT_GEM::GetNodePorosityValue(elem->GetNodeIndex( i ));
+                const double nodePoros = m_vec_GEM->REACT_GEM::GetNodePorosityValue(elem->GetNodeIndex( i ));
+                const double nodePorosInit = m_vec_GEM->REACT_GEM::GetNodePorosityValueInitial(elem->GetNodeIndex ( i ));
 
-                const double& porosCrit = k[2];
+                const double& porosCritRelative = k[2];
+                const double porosCrit = nodePorosInit * porosCritRelative;
                 const double& De_min = k[3];
 
                 double De;
@@ -1097,12 +1099,11 @@ double CompProperties::CalcDiffusionCoefficientCP(long index,double theta,CRFPro
                     const double& Dw = k[0];
                     const double& m = k[1];
 
-                    //ATTENTION: This does not include initial saturation different from 1
-                    const double porosInit = m_vec_GEM->REACT_GEM::GetNodePorosityValueInitial(elem->GetNodeIndex ( i ));
+                    // ATTENTION: This does not include initial saturation different from 1
 
-                    const double De_porosInit = Dw * std::pow(porosInit, m);
+                    const double De_porosInit = Dw * std::pow(nodePorosInit, m);
 
-                    const double phiRatio = (nodePoros - porosCrit) / (porosInit - porosCrit);
+                    const double phiRatio = (nodePoros - porosCrit) / (nodePorosInit - porosCrit);
                     const double tort = std::pow(phiRatio, m);
                     De = De_porosInit * tort; // node based diffusion coefficient
 
