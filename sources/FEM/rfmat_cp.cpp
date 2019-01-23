@@ -1068,6 +1068,12 @@ double CompProperties::CalcDiffusionCoefficientCP(long index,double theta,CRFPro
 
             porosity = m_mat_mp->Porosity(index, theta);
 
+            // srohmen: g (gauss point value maybe?) is not used in TortuosityFunction?
+            // the parameter is not documented at all and I do not know that it is supposed to be...
+            // hopefully it crashes when somebody changes the implementation...
+            double* g = nullptr;
+            tortFactor = m_mat_mp->TortuosityFunction(index, g, theta);
+
             const MeshLib::CElem* elem = m_pcs->m_msh->ele_vector[index];
 
             // we average the diffusion coefficient directly
@@ -1101,7 +1107,7 @@ double CompProperties::CalcDiffusionCoefficientCP(long index,double theta,CRFPro
 
                     // ATTENTION: This does not include initial saturation different from 1
 
-                    const double De_porosInit = Dw * std::pow(nodePorosInit, m);
+                    const double De_porosInit = Dw * tortFactor * nodePorosInit;
 
                     const double phiRatio = (nodePoros - porosCrit) / (nodePorosInit - porosCrit);
                     const double tort = std::pow(phiRatio, m);
