@@ -1072,7 +1072,7 @@ double CompProperties::CalcDiffusionCoefficientCP(long index,double theta,CRFPro
             // the parameter is not documented at all and I do not know that it is supposed to be...
             // hopefully it crashes when somebody changes the implementation...
             double* g = nullptr;
-            tortFactor = m_mat_mp->TortuosityFunction(index, g, theta);
+            const double tortFactor = m_mat_mp->TortuosityFunction(index, g, theta);
 
             const MeshLib::CElem* elem = m_pcs->m_msh->ele_vector[index];
 
