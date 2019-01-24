@@ -1068,11 +1068,12 @@ double CompProperties::CalcDiffusionCoefficientCP(long index,double theta,CRFPro
 
             porosity = m_mat_mp->Porosity(index, theta);
 
-            // srohmen: g (gauss point value maybe?) is not used in TortuosityFunction?
-            // the parameter is not documented at all and I do not know that it is supposed to be...
-            // hopefully it crashes when somebody changes the implementation...
-            double* g = nullptr;
-            const double tortFactor = m_mat_mp->TortuosityFunction(index, g, theta);
+            // very ugly hack: the initial diffusion coeffcient and exponent m
+            // can not be defined domain dependend in the diffusivity model.
+            // so we retrieve those values from the tortuosity model for now
+            // WARNING: we can not check the array size. hopefully this is defined...
+            const double De_porosInit = m_mat_mp->tortuosity_model_values[1];
+            const double m = m_mat_mp->tortuosity_model_values[2];
 
             const MeshLib::CElem* elem = m_pcs->m_msh->ele_vector[index];
 
@@ -1095,19 +1096,14 @@ double CompProperties::CalcDiffusionCoefficientCP(long index,double theta,CRFPro
                 const double nodePoros = m_vec_GEM->REACT_GEM::GetNodePorosityValue(elem->GetNodeIndex( i ));
                 const double nodePorosInit = m_vec_GEM->REACT_GEM::GetNodePorosityValueInitial(elem->GetNodeIndex ( i ));
 
-                const double& porosCritRelative = k[2];
+                const double& porosCritRelative = k[0];
                 const double porosCrit = nodePorosInit * porosCritRelative;
-                const double& De_min = k[3];
+                const double& De_min = k[1];
 
                 double De;
                 if(nodePoros > porosCrit)
                 {
-                    const double& Dw = k[0];
-                    const double& m = k[1];
-
                     // ATTENTION: This does not include initial saturation different from 1
-
-                    const double De_porosInit = Dw * tortFactor * nodePorosInit;
 
                     const double phiRatio = (nodePoros - porosCrit) / (nodePorosInit - porosCrit);
                     const double tort = std::pow(phiRatio, m);

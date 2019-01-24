@@ -600,6 +600,16 @@ std::ios::pos_type CMediumProperties::Read(std::ifstream* mmp_file)
     		   tortuosity_model = 2;
                in >> tortuosity_model_values[0];
                break;
+            case '3':
+               // dirty hack case, define domain dependend
+               // diffusivity values additionally to the tortFac
+
+               // still use the simple const tort factor model 1
+               tortuosity_model = 1;
+               in >> tortuosity_model_values[0]; // tortFac
+               in >> tortuosity_model_values[1]; // De0
+               in >> tortuosity_model_values[2]; // m
+               break;
 			case 'I':     // isotropic
 				tortuosity_tensor_type = 0;
 				tortuosity_model = 1;
