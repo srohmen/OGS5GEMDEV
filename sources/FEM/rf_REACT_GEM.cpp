@@ -111,6 +111,7 @@ REACT_GEM::REACT_GEM ( void )
 	flag_disable_gems = 0;                    // always calculate gems
 	flag_gem_sia = 0;                         // default: do not allow GEM_SIA
 	flag_hayekit = 1;                         // default is to use scaling for hayekit: 1: remove solvent (water only) in order to scale volume....0: remove complete solution, including solutes
+	flag_scale_fluidvolume_to_porosity = 0; // introduced for CEBAMA benchmark: scale fluid volume to porosity even if porosity coupling is switched off
 	// flag for different iterative scheme
 	// 0 - sequential non-iterative scheme
 	// 1 - standard iterative scheme
@@ -1148,12 +1149,7 @@ short REACT_GEM::SetReactInfoBackMassTransport ( int timelevel )
 		if ( flag_coupling_hydrology > 0 && !m_boundary[in] )
 			REACT_GEM::SetSourceSink_MT ( in, dt /*in sec*/ );
 	}
-	// kg44 31.01.2014 standard mpi non supported anymore
-//#if defined(USE_MPI_GEMS)
-//	if ( flag_coupling_hydrology > 0 )
-//		m_flow_pcs->SetSTWaterGemSubDomain ( myrank ); // necessary for domain decomposition
 
-//#endif
 	if ( flag_porosity_change > 0 )
 		ConvPorosityNodeValue2Elem ( 0 );                   // old timestep :copy current values to old timestep before updating porosity
 	if ( flag_porosity_change > 0 )
@@ -2743,9 +2739,41 @@ int REACT_GEM::MassToConcentration ( long in,int i_failed,  TNode* m_Node )   //
             }
             m_fluid_volume[in] *= skal_faktor; //if we scale b-vector for water we also have to change fluid volume!
         }
+        else if (!flag_porosity_change && flag_scale_fluidvolume_to_porosity && !flag_hayekit )  //scale liquid phase always to porosity, even if porosity is not changing -> for CEBAMA benchmark: mimics behaviour of LMA based codes that work with concentrations  
+        {
+                     // scale in xDC (for output only)
+            for ( j=0 ; j <= idx_water; j++ )
+            {
+                i = in * nDC + j;
+                m_xDC[i] *= skal_faktor;     //newly scaled xDC including water /excluding rest
+            }
+            // these changes are for each entry in b Vector
+            for ( j = 0; j < nIC; j++ )
+            {
+                i = in * nIC + j;
+		ii = in * nPS * nIC + 0 * nIC + j; // corresponding index of first phase (fluid) for m_bPS
+                m_bPS[ii] *= skal_faktor; // completely newly scaled first phase ...this is default!
+            }
+            m_fluid_volume[in] *= skal_faktor; //if we scale b-vector for water we also have to change fluid volume! -> it should be now equal to porosity for fully saturated conditions   
+        }
+        else if (!flag_porosity_change && flag_scale_fluidvolume_to_porosity && flag_hayekit ) 
+        {
+            i = in * nDC + idx_water;// scale only water
+             
+           // old_h2o=m_xDC[i];
+            m_xDC[i] *= skal_faktor;
+           // new_h2o=m_xDC[i];
+           // diff_h2o=old_h2o-new_h2o;// will be reused for scaling b_vector
+            // 23.Mar2017: new scaling based on H2O only....H,O in complexes, dissolved gases are ignored
+            ii = in * nPS * nIC + idx_hydrogen; // corresponding index of first phase (fluid) for m_bPS
+            m_bPS[ii] *= skal_faktor; //
+            ii = in * nPS * nIC + idx_oxygen; // corresponding index of first phase (fluid) for m_bPS
+            m_bPS[ii] *= skal_faktor; // 
+	    m_fluid_volume[in] *= skal_faktor; //if we scale b-vector for water we also have to change fluid volume! -> should be equal to porosity for fully saturated conditions
+        }
         else
         {
-            // do nothing! no change in phase amount
+          // do nothing   
         }
 
         // here we do not need to account for different flow processes ....
@@ -3523,6 +3551,16 @@ ios::pos_type REACT_GEM::Read ( std::ifstream* gem_file )
 			// subkeyword found
 			in.str ( GetLineFromFile1 ( gem_file ) );
 			in >> flag_hayekit;
+			in.clear();
+			continue;
+		}
+		// ......................................................
+		/// Key word "$FLAG_FLUIDVOLUME_EQUAL_POROSITY": force scaling of water volume to porosity even if porosity change is disabled
+		if ( line_string.find ( "$FLAG_FLUIDVOLUME_EQUAL_POROSITY" ) != string::npos )
+		{
+			// subkeyword found
+			in.str ( GetLineFromFile1 ( gem_file ) );
+			in >> flag_scale_fluidvolume_to_porosity;
 			in.clear();
 			continue;
 		}
@@ -5497,11 +5535,11 @@ int REACT_GEM::CalcLimits ( long in,double deltat, TNode* m_Node)
                     // kinetic_model==2 or 7  only dissolution is controlled (no precipitation allowed)
                     // kinetic_mocel==3 only precipitation is copntroleld (no dissolution allowed)
                     // these cases are not possible with reaktoro (as implemented..needs change?)
-                            if ((m_kin[ii].kinetic_model == 2) && (omega_phase[in * nPH + k] >1.0) )// dissolution only 
+                            if ((m_kin[ii].kinetic_model == 2) && (dummy>0.0) )// dissolution only 
 			    {
 			      dummy=0.0;
 			    }
-                            if ((m_kin[ii].kinetic_model == 3) && (omega_phase[in * nPH + k] <1.0)) // precipitation only 
+                            if ((m_kin[ii].kinetic_model == 3) && (dummy<0.0)) // precipitation only 
 			    {
 			      dummy=0.0;
 			    }
@@ -6257,7 +6295,6 @@ void REACT_GEM::WriteVTKGEMValues ( fstream &vtk_file )
 	//....................................................................
 	for ( j = 0; j < nNodes; j++ )
 		vtk_file << " " <<  m_co2_transport[j] << "\n";
-
 }
 
 /** gems_worker:
@@ -7180,6 +7217,23 @@ int REACT_GEM::SolveChemistry(long in, TNode* m_Node)
 	      m_phase_volume[in*nPH+j]=m_Node->Ph_Volume(j);
 	    }
         }
+// DEBUG output 1 april 2019
+/*        if (in == 0)
+        {
+                stringstream ss (stringstream::in | stringstream::out);
+                ss.clear();
+                ss.str("");
+                ss << "_node-"<<in<<"_time-"<< aktueller_zeitschritt;
+                string rank_str;
+                rank_str = ss.str();
+                ss.clear();
+                // write out a separate time stamp into file
+                string m_file_namet = "DBR/gems_dbr_domain-" + rank_str + ".dat";
+
+                m_Node->GEM_write_dbr ( m_file_namet.c_str() );
+        }       
+*/        
+// debug output end 
         // do stuff for time stepping
         subtime +=dtchem; // increase subtime first, as kinetic step is finished successfully
         ii+=1; //increase counter for successfull time steps!
